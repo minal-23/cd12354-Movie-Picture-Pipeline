@@ -7,6 +7,7 @@ on:
       - main
 
 jobs:
+#LINT
   Linting:
     runs-on: ubuntu-latest
     environment: Devlopmnet Environment
@@ -29,7 +30,7 @@ jobs:
 
     - name: Checkout Run Lint
       run: cd starter/backend && pipenv run lint
-
+#TEST
   Test:
     runs-on: ubuntu-latest
 
@@ -52,7 +53,7 @@ jobs:
     - name: Test
       run: cd starter/backend && pipenv install pytest && pipenv run test
 
-      
+    #BUILD  
   Build:
     needs: [Linting, Test]
     runs-on: ubuntu-latest
