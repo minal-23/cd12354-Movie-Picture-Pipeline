@@ -1,4 +1,4 @@
-name: Backend Continuous Deployment
+name: Backend CD
 
 on:
   workflow_dispatch:
@@ -93,6 +93,6 @@ jobs:
         IMAGE_TAG: latest
         REPO_NAME: backend
       run: |
-        aws eks update-kubeconfig --name udacity-project4 --region us-east-1
+        aws eks update-kubeconfig --name final-project --region us-east-1
         kustomize edit set image backend=367291762754.dkr.ecr.us-east-1.amazonaws.com/$REPO_NAME:$IMAGE_TAG
         kustomize build | kubectl apply -f -
