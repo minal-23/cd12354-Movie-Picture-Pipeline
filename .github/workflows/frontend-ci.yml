@@ -1,0 +1,117 @@
+
+# Workflow name
+name: frontend-ci-workflow
+
+# Triggers
+on:
+  # Manual trigger using the workflow_dispatch event
+  workflow_dispatch:
+  # Automatic trigger on pull request events targeting the main branch
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+# Jobs in the workflow: linting, testing and build
+jobs:
+  linting:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 
+        uses: actions/setup-node@v4
+        with:
+          node-version: latest
+
+      - name: Cache node modules
+        id: cache-npm
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+      
+      - name: Install dependencies
+        run: cd frontend && npm ci
+
+      - name: Run the linter
+        run: cd frontend && npm run lint -- --fix  
+
+  testing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Node.js 
+        uses: actions/setup-node@v4
+        with:
+          node-version: latest
+
+      - name: Cache node modules
+        id: cache-npm
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+
+      - name: Install dependencies
+        run: cd frontend && npm ci
+  
+      - name: Run tests
+        run: cd frontend && npm test 
+
+  build:
+    needs: [linting, testing]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 
+        uses: actions/setup-node@v4
+        with:
+          node-version: latest
+
+      - name: Cache node modules
+        id: cache-npm
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+
+      - name: Install dependencies
+        run: cd frontend && npm ci
+  
+      - name: Create environment variable
+        run: REACT_APP_MOVIE_API_URL=http://localhost:5000 
+    
+      - name: Build docker image
+        run: cd frontend && docker build --build-arg=REACT_APP_MOVIE_API_URL --tag=mp-frontend:latest .
+    
+      - name: Run docker container
+        run: cd frontend && docker run --name mp-frontend -p 3000:3000 -d mp-frontend
+
+
+
+ 
