@@ -40,10 +40,10 @@ jobs:
             ${{ runner.os }}-
       
       - name: Install dependencies
-        run: cd starter/frontend && npm ci
+        run:  npm ci
 
       - name: Run the linter
-        run: cd starter/frontend && npm run lint -- --fix 
+        run:  npm run lint -- --fix 
 
   testing:
     runs-on: ubuntu-latest
@@ -70,10 +70,10 @@ jobs:
             ${{ runner.os }}-
 
       - name: Install dependencies
-        run: cd starter/frontend && npm ci
+        run: npm ci
 
       - name: Run tests
-        run: cd starter/frontend && npm test
+        run: npm test
 
   build:
     needs: [linting, testing]
@@ -101,7 +101,7 @@ jobs:
             ${{ runner.os }}-
 
       - name: Install dependencies
-        run: cd starter/frontend && npm ci
+        run: npm ci
 
       - name: Create environment variable
         run: REACT_APP_MOVIE_API_URL=http://afc1a90e667d140f0ad4fb036fca6d52-299201391.us-east-1.elb.amazonaws.com
@@ -123,14 +123,14 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: frontend
           IMAGE_TAG: ${{ github.sha }}
-        run: cd starter/frontend && docker build --build-arg=REACT_APP_MOVIE_API_URL -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
+        run: docker build --build-arg=REACT_APP_MOVIE_API_URL -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
 
       - name: Push to ECR
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: frontend
           IMAGE_TAG: ${{ github.sha }}
-        run: cd starter/frontend && docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+        run: docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
 
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --name final-project --region us-east-1
@@ -140,10 +140,10 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: frontend
           IMAGE_TAG: ${{ github.sha }}
-        run: cd starter/frontend/k8s && kustomize edit set image frontend=$REGISTRY/$REPOSITORY:$IMAGE_TAG
+        run: cd k8s && kustomize edit set image frontend=$REGISTRY/$REPOSITORY:$IMAGE_TAG
 
       - name: Deploy application to EKS cluster
-        run: cd starter/frontend/k8s && kustomize build | kubectl apply -f -
+        run: cd k8s && kustomize build | kubectl apply -f -
       - name: cluster details
         run :   |
           kubectl get pods -A
