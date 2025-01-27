@@ -1,79 +1,151 @@
-name: Frontend CD pipeline 
 
+# Workflow name
+name: frontend-cd-workflow
+
+# Triggers
 on:
-  push:
-    branches: main
-
+  # Manual trigger using the workflow_dispatch event
   workflow_dispatch:
-
+  # Automatic trigger on push events targeting the main branch
+  push:
+    branches:
+      - main
 defaults:
   run:
     working-directory: ./starter/frontend
-
-env:
-  CLUSTER_NAME: m-cluster
-
+# Jobs defined in the workflow
 jobs:
-  test-build-deploy:
+  linting:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Check out  code from the Repository. 
-      uses: actions/checkout@v3
-
-    - name: Set up a Node.js environment using the specified node version 
-      uses: actions/setup-node@v3
-      with:
-        node-version: latest
-
-    - name: Cache NPM dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.npm
-        key: ${{ runner.OS }}-npm-cache-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.OS }}-npm-cache-
-
-    - name: Install the dependencies.
-      run: npm ci
-
-    - name: Run the linter.
-      run: npm run lint
-
-    - name: Run the tests
-      run: npm test  
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v3
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEYID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-session-token: ${{secrets.AWS_SESSION_TOKEN}}
-        aws-region: us-east-1 
-
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
-
-    - name: Build and Push Image to ECR
-      run :   |
-         docker build --build-arg=REACT_APP_MOVIE_API_URL=http://localhost:5000 -t movie-pipeline-frontend:v2 .
-         docker tag movie-pipeline-frontend:v2 367291762754.dkr.ecr.us-east-1.amazonaws.com/frontend:${GITHUB_SHA}
-         docker push 367291762754.dkr.ecr.us-east-1.amazonaws.com/frontend:${GITHUB_SHA}
-
-    - name: Update kubeconfig
-      run:  | 
-         echo "CLUSTER_NAME=$CLUSTER_NAME" >> $GITHUB_ENV
-         aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region us-east-1
+      - name: Checkout code
+        uses: actions/checkout@v4
       
-    - name: Deploy to K8s
-      run :   |
-          cd k8s
-          kustomize edit set image frontend=367291762754.dkr.ecr.us-east-1.amazonaws.com/frontend:${GITHUB_SHA}
-          kustomize build|kubectl apply -k .
-    
-    - name: Gather K8 info
-      run :   |
+      - name: Set up Node.js 
+        uses: actions/setup-node@v4
+        with:
+          node-version: latest
+
+      - name: Cache node modules
+        id: cache-npm
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+      
+      - name: Install dependencies
+        run:  npm ci
+
+      - name: Run the linter
+        run:  npm run lint -- --fix 
+
+  testing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 
+        uses: actions/setup-node@v4
+        with:
+          node-version: latest
+
+      - name: Cache node modules
+        id: cache-npm
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+  build:
+    needs: [linting, testing]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 
+        uses: actions/setup-node@v4
+        with:
+          node-version: latest
+
+      - name: Cache node modules
+        id: cache-npm
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create environment variable
+        run: REACT_APP_MOVIE_API_URL=http://afc1a90e667d140f0ad4fb036fca6d52-299201391.us-east-1.elb.amazonaws.com
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{secrets.AWS_SESSION_TOKEN}}
+          aws-region: us-east-1  
+  
+      - name: Set up ECR login
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build docker image 
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: frontend
+          IMAGE_TAG: ${{ github.sha }}
+        run: docker build --build-arg=REACT_APP_MOVIE_API_URL -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
+
+      - name: Push to ECR
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: frontend
+          IMAGE_TAG: ${{ github.sha }}
+        run: docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name final-project --region us-east-1
+
+      - name: Set image tag to newer version
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: frontend
+          IMAGE_TAG: ${{ github.sha }}
+        run: cd k8s && kustomize edit set image frontend=$REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+      - name: Deploy application to EKS cluster
+        run: cd k8s && kustomize build | kubectl apply -f -
+      - name: cluster details
+        run :   |
           kubectl get pods -A
           kubectl get svc -A
-          kubectl describe pods -A    
+          kubectl describe pods -A
