@@ -1,18 +1,17 @@
-
 # Workflow name
 name: frontend-cd-workflow
 
 # Triggers
 on:
-  # Manual trigger using the workflow_dispatch event
   workflow_dispatch:
-  # Automatic trigger on push events targeting the main branch
   push:
     branches:
       - main
+
 defaults:
   run:
     working-directory: ./starter/frontend
+
 # Jobs defined in the workflow
 jobs:
   linting:
@@ -40,10 +39,10 @@ jobs:
             ${{ runner.os }}-
       
       - name: Install dependencies
-        run:  npm ci
+        run: npm ci
 
       - name: Run the linter
-        run:  npm run lint -- --fix 
+        run: npm run lint -- --fix 
 
   testing:
     runs-on: ubuntu-latest
@@ -103,9 +102,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Create environment variable
-        run: REACT_APP_MOVIE_API_URL=http://afc1a90e667d140f0ad4fb036fca6d52-299201391.us-east-1.elb.amazonaws.com
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v3
         with:
@@ -113,17 +109,22 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{secrets.AWS_SESSION_TOKEN}}
           aws-region: us-east-1  
-  
+
       - name: Set up ECR login
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build docker image 
+      - name: Build the docker image
         env:
+          REACT_APP_MOVIE_API_URL: ${{ secrets.REACT_APP_MOVIE_API_URL }}
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: frontend
           IMAGE_TAG: ${{ github.sha }}
-        run: docker build --build-arg=REACT_APP_MOVIE_API_URL -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
+        run: |
+          docker build \
+            --build-arg REACT_APP_MOVIE_API_URL=$REACT_APP_MOVIE_API_URL \
+            -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
+            .
 
       - name: Push to ECR
         env:
@@ -144,8 +145,9 @@ jobs:
 
       - name: Deploy application to EKS cluster
         run: cd k8s && kustomize build | kubectl apply -f -
-      - name: cluster details
-        run :   |
+
+      - name: Cluster details
+        run: |
           kubectl get pods -A
           kubectl get svc -A
           kubectl describe pods -A
