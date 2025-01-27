@@ -10,7 +10,9 @@ on:
   push:
     branches:
       - main
-
+defaults:
+  run:
+    working-directory: ./starter/frontend
 # Jobs defined in the workflow
 jobs:
   linting:
@@ -142,6 +144,11 @@ jobs:
 
       - name: Deploy application to EKS cluster
         run: cd starter/frontend/k8s && kustomize build | kubectl apply -f -
+      - name: cluster details
+        run :   |
+          kubectl get pods -A
+          kubectl get svc -A
+          kubectl describe pods -A
 
 
 
