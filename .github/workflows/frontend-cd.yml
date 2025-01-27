@@ -116,7 +116,7 @@ jobs:
 
       - name: Build the docker image
         env:
-          REACT_APP_MOVIE_API_URL: ${{ secrets.REACT_APP_MOVIE_API_URL }}
+          REACT_APP_MOVIE_API_URL: http://aaa9576db5e9c4110afe210a26f871ca-2090528013.us-east-1.elb.amazonaws.com/movies
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: frontend
           IMAGE_TAG: ${{ github.sha }}
